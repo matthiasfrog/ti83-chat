@@ -218,14 +218,15 @@ async function handleBLEMessage(event) {
             await response.json();
 
 
-        if (!response.ok) {
+       if (!response.ok) {
 
-            throw new Error(
-                data.error || "AI request failed"
-            );
+    console.error("FULL AI ERROR:", data);
 
-        }
+    throw new Error(
+        JSON.stringify(data)
+    );
 
+}
 
         const answer =
             data.answer || "No answer received.";
