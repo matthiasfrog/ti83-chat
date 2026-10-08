@@ -199,15 +199,32 @@ async function tryAutoConnect() {
         const devices =
             await navigator.bluetooth.getDevices();
 
-        const found =
-            devices.find(d => d.name === "Marilyn");
+        console.log("Authorized Bluetooth devices:", devices);
 
-        if (!found) {
-            console.log("Marilyn has not been authorized yet.");
-            return;
-        }
+if (devices.length === 0) {
+    console.log("No previously authorized devices.");
+    return;
+}
 
-        device = found;
+const found =
+    devices.find(d =>
+        d.name === "Marilyn" ||
+        d.name === "TI83-CHAT"
+    );
+
+if (!found) {
+    console.log(
+        "Authorized devices found, but Marilyn was not among them."
+    );
+    return;
+}
+
+device = found;
+
+console.log(
+    "Found Marilyn:",
+    device.name
+);
 
         document.getElementById("status").textContent =
             "Found Marilyn. Connecting...";
