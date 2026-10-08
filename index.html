@@ -1,11 +1,19 @@
 <!DOCTYPE html>
 <html>
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
     <title>Marilyn</title>
 
     <style>
+
         body {
             font-family: sans-serif;
             max-width: 600px;
@@ -35,14 +43,19 @@
             background: #eee;
             padding: 10px;
         }
+
     </style>
+
 </head>
 
+
 <body>
+
 
     <button id="connect">
         Connect to Marilyn
     </button>
+
 
     <p id="status">
         Disconnected
@@ -54,7 +67,7 @@
     <pre id="received"></pre>
 
 
-    <h3>Marilyn's Response
+    <h3>Marilyn's Response</h3>
 
     <pre id="answer"></pre>
 
@@ -75,31 +88,48 @@
     </button>
 
 
+
 <script>
+
 
 const SERVICE_UUID =
     "12345678-1234-1234-1234-1234567890ab";
 
+
 const CHARACTERISTIC_UUID =
     "87654321-4321-4321-4321-ba0987654321";
+
 
 const AI_URL =
     "https://ti83.matthias-frog.workers.dev/";
 
 
-let device;
-let characteristic;
+let device = null;
 
-    <div id="bluetoothDebug"
-     style="font-size:12px; margin:10px 0; white-space:pre-wrap;">
-Bluetooth debug loading...
-</div>
+let characteristic = null;
+
+let reconnecting = false;
+
+
 
 /* =====================================================
-   CONNECT TO XIAO
+   CONNECT TO MARILYN
 ===================================================== */
 
 async function connectToMarilyn() {
+
+    if (!device) {
+        return;
+    }
+
+    if (
+        device.gatt &&
+        device.gatt.connected &&
+        characteristic
+    ) {
+        return;
+    }
+
 
     try {
 
@@ -138,34 +168,36 @@ async function connectToMarilyn() {
         );
 
 
-      document.getElementById("status").textContent =
-    "CONNECTED to " + device.name;
+        device.removeEventListener(
+            "gattserverdisconnected",
+            handleDisconnect
+        );
 
-device.removeEventListener(
-    "gattserverdisconnected",
-    handleDisconnect
-);
 
-device.addEventListener(
-    "gattserverdisconnected",
-    handleDisconnect
-);
+        device.addEventListener(
+            "gattserverdisconnected",
+            handleDisconnect
+        );
 
-        console.log("Connected to Marilyn");
+
+        document.getElementById("status").textContent =
+            "CONNECTED to " + device.name;
+
+
+        console.log(
+            "Connected to",
+            device.name
+        );
 
 
     }
 
     catch (error) {
 
-        console.error(error);
-
         characteristic = null;
 
-
         document.getElementById("status").textContent =
-            "Disconnected";
-
+            "Waiting for Marilyn...";
 
         throw error;
 
@@ -173,13 +205,11 @@ device.addEventListener(
 
 }
 
-    /* =====================================================
-   AUTOMATIC RECONNECT
+
+
+/* =====================================================
+   FIND AND CONNECT TO MARILYN
 ===================================================== */
-
-let reconnectTimer = null;
-let reconnecting = false;
-
 
 async function tryAutoConnect() {
 
@@ -187,51 +217,64 @@ async function tryAutoConnect() {
         return;
     }
 
-    if (device && device.gatt && device.gatt.connected) {
+
+    if (
+        device &&
+        device.gatt &&
+        device.gatt.connected &&
+        characteristic
+    ) {
         return;
     }
 
-    if (!navigator.bluetooth.getDevices) {
-        console.log("Automatic Bluetooth reconnect is not supported.");
+
+    if (
+        !navigator.bluetooth ||
+        !navigator.bluetooth.getDevices
+    ) {
+
+        console.log(
+            "Bluetooth getDevices() unavailable."
+        );
+
         return;
+
     }
+
 
     reconnecting = true;
+
 
     try {
 
         const devices =
             await navigator.bluetooth.getDevices();
 
-        console.log("Authorized Bluetooth devices:", devices);
 
-if (devices.length === 0) {
-    console.log("No previously authorized devices.");
-    return;
-}
+        const found =
+            devices.find(
+                d => d.name === "Marilyn"
+            );
 
-const found =
-    devices.find(d =>
-        d.name === "Marilyn" ||
-        d.name === "TI83-CHAT"
-    );
 
-if (!found) {
-    console.log(
-        "Authorized devices found, but Marilyn was not among them."
-    );
-    return;
-}
+        if (!found) {
 
-device = found;
+            console.log(
+                "Marilyn not authorized yet."
+            );
 
-console.log(
-    "Found Marilyn:",
-    device.name
-);
+            return;
 
-        document.getElementById("status").textContent =
-            "Found Marilyn. Connecting...";
+        }
+
+
+        device = found;
+
+
+        console.log(
+            "Found Marilyn."
+        );
+
 
         await connectToMarilyn();
 
@@ -240,11 +283,8 @@ console.log(
     catch (error) {
 
         console.log(
-            "Marilyn not available yet."
+            "Marilyn is not available yet."
         );
-
-        document.getElementById("status").textContent =
-            "Waiting for Marilyn...";
 
     }
 
@@ -257,25 +297,17 @@ console.log(
 }
 
 
+
 /* =====================================================
-   KEEP TRYING
+   AUTOMATIC RECONNECT LOOP
 ===================================================== */
 
-function startAutoReconnect() {
+setInterval(
+    tryAutoConnect,
+    3000
+);
 
-    if (reconnectTimer !== null) {
-        return;
-    }
 
-    tryAutoConnect();
-
-    reconnectTimer =
-        setInterval(
-            tryAutoConnect,
-            3000
-        );
-
-}
 
 /* =====================================================
    HANDLE DISCONNECT
@@ -285,35 +317,155 @@ function handleDisconnect() {
 
     characteristic = null;
 
+
     document.getElementById("status").textContent =
         "Marilyn disconnected. Reconnecting...";
 
-    startAutoReconnect();
+
+    tryAutoConnect();
 
 }
-    
+
+
+
 /* =====================================================
-   MANUAL CONNECT BUTTON
+   MANUAL FIRST-TIME CONNECTION
 ===================================================== */
 
-document.getElementById("connect").onclick = async () => {
+document.getElementById("connect").onclick =
+    async function() {
+
+        try {
+
+            document.getElementById("status").textContent =
+                "Scanning...";
+
+
+            device =
+                await navigator.bluetooth.requestDevice({
+
+                    filters: [
+                        {
+                            services: [
+                                SERVICE_UUID
+                            ]
+                        }
+                    ]
+
+                });
+
+
+            await connectToMarilyn();
+
+        }
+
+        catch (error) {
+
+            console.error(error);
+
+
+            document.getElementById("status").textContent =
+                "ERROR: " + error.message;
+
+        }
+
+    };
+
+
+
+/* =====================================================
+   RECEIVE MESSAGE FROM TI-83
+===================================================== */
+
+async function handleBLEMessage(event) {
 
     try {
 
-        document.getElementById("status").textContent =
-            "Scanning...";
+        const bytes =
+            new Uint8Array(
+                event.target.value.buffer
+            );
 
 
-        device = await navigator.bluetooth.requestDevice({
-            filters: [
+        const text =
+            new TextDecoder().decode(bytes);
+
+
+        console.log(
+            "Received from TI-83:",
+            text
+        );
+
+
+        document.getElementById("received")
+            .textContent = text;
+
+
+        document.getElementById("answer")
+            .textContent = "Thinking...";
+
+
+        /* Tell calculator we are working */
+
+        await sendToTI83("WAIT");
+
+
+        /* Ask Gemini */
+
+        const response =
+            await fetch(
+                AI_URL,
                 {
-                    services: [SERVICE_UUID]
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        question: text
+                    })
                 }
-            ]
-        });
+            );
 
 
-        await connectToMarilyn();
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            console.error(
+                "FULL AI ERROR:",
+                data
+            );
+
+            throw new Error(
+                JSON.stringify(data)
+            );
+
+        }
+
+
+        const answer =
+            data.answer ||
+            "No answer received.";
+
+
+        console.log(
+            "AI answer:",
+            answer
+        );
+
+
+        document.getElementById("answer")
+            .textContent = answer;
+
+
+        /* Send final answer to TI-83 */
+
+        await sendToTI83(answer);
 
     }
 
@@ -321,75 +473,17 @@ document.getElementById("connect").onclick = async () => {
 
         console.error(error);
 
-        document.getElementById("status").textContent =
-            "ERROR: " + error;
-
-    }
-
-};
-
-
-/* =====================================================
-   RECEIVE MESSAGE FROM TI-83
-===================================================== */
-    
-async function handleBLEMessage(event) {
-    try {
-        const bytes =
-            new Uint8Array(event.target.value.buffer);
-
-        const text =
-            new TextDecoder().decode(bytes);
-
-        console.log("Received from TI-83:", text);
-
-        document.getElementById("received")
-            .textContent = text;
-
-        document.getElementById("answer")
-            .textContent = "Thinking...";
-
-        // Tell the calculator we're working
-        await sendToTI83("WAIT");
-
-        // Ask Gemini
-        const response =
-            await fetch(AI_URL, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    question: text
-                })
-            });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            console.error("FULL AI ERROR:", data);
-            throw new Error(JSON.stringify(data));
-        }
-
-        const answer =
-            data.answer || "No answer received.";
-
-        console.log("AI answer:", answer);
-
-        document.getElementById("answer")
-            .textContent = answer;
-
-        // Send final answer
-        await sendToTI83(answer);
-
-    } catch (error) {
-        console.error(error);
 
         document.getElementById("answer")
             .textContent =
-                "ERROR: " + error.message;
+                "ERROR: " +
+                error.message;
+
     }
+
 }
+
+
 
 /* =====================================================
    SEND TEXT TO TI-83
@@ -406,17 +500,9 @@ async function sendToTI83(text) {
     }
 
 
-    /*
-     * Convert text to UTF-8
-     */
-
     const bytes =
         new TextEncoder().encode(text);
 
-
-    /*
-     * BLE write
-     */
 
     await characteristic.writeValueWithResponse(
         bytes
@@ -429,119 +515,64 @@ async function sendToTI83(text) {
     );
 
 }
-    
+
+
+
+/* =====================================================
+   MANUAL SEND
+===================================================== */
+
+document.getElementById("send").onclick =
+    async function() {
+
+        try {
+
+            const input =
+                document.getElementById("message");
+
+
+            const text =
+                input.value;
+
+
+            if (text.length === 0) {
+                return;
+            }
+
+
+            await sendToTI83(text);
+
+
+            input.value = "";
+
+        }
+
+        catch (error) {
+
+            console.error(error);
+
+
+            alert(
+                "Send failed: " +
+                error.message
+            );
+
+        }
+
+    };
+
+
+
 /* =====================================================
    START AUTOMATIC CONNECTION
 ===================================================== */
 
-startAutoReconnect();
+tryAutoConnect();
 
-    async function bluetoothDebug() {
-
-    const box =
-        document.getElementById("bluetoothDebug");
-
-    try {
-
-        if (!navigator.bluetooth) {
-
-            box.textContent =
-                "Bluetooth API: NOT AVAILABLE";
-
-            return;
-        }
-
-        let text =
-            "Bluetooth API: AVAILABLE\n";
-
-        const devices =
-            await navigator.bluetooth.getDevices();
-
-        text +=
-            "Authorized devices: " +
-            devices.length +
-            "\n";
-
-        if (devices.length === 0) {
-
-            text +=
-                "No previously authorized devices found.";
-
-        } else {
-
-            devices.forEach((d, i) => {
-
-                text +=
-                    "Device " +
-                    (i + 1) +
-                    ": " +
-                    (d.name || "(no name)") +
-                    "\n";
-
-                text +=
-                    "Connected: " +
-                    (d.gatt?.connected ? "YES" : "NO") +
-                    "\n";
-
-            });
-
-        }
-
-        box.textContent = text;
-
-    } catch (error) {
-
-        box.textContent =
-            "Bluetooth debug ERROR:\n" +
-            error.message;
-
-    }
-}
-
-bluetoothDebug();
-
-/* =====================================================
-   MANUAL SEND BUTTON
-===================================================== */
-
-document.getElementById("send").onclick = async () => {
-
-    try {
-
-        const input =
-            document.getElementById("message");
-
-
-        const text =
-            input.value;
-
-
-        if (text.length === 0) {
-            return;
-        }
-
-
-        await sendToTI83(text);
-
-
-        input.value = "";
-
-    }
-
-    catch (error) {
-
-        console.error(error);
-
-        alert(
-            "Send failed: " +
-            error.message
-        );
-
-    }
-
-};
 
 </script>
 
+
 </body>
+
 </html>
