@@ -167,8 +167,11 @@ document.getElementById("connect").onclick = async () => {
 ===================================================== */
 
 let waitTimer = null;
-
+let requestID = 0;
+    
 async function handleBLEMessage(event) {
+    const myRequestID = ++requestID;
+
     try {
         const bytes =
             new Uint8Array(
@@ -189,20 +192,29 @@ async function handleBLEMessage(event) {
         document.getElementById("answer")
             .textContent = "Thinking...";
 
+        // Stop any old WAIT timer.
+        clearInterval(waitTimer);
+        waitTimer = null;
+
         // Send WAIT immediately.
         await sendToTI83("WAIT");
 
-        // Keep refreshing WAIT every 5 seconds
-        // while Gemini is generating the answer.
-        clearInterval(waitTimer);
-
+        // Send WAIT every 5 seconds.
         waitTimer = setInterval(async () => {
+
+            // Do nothing if this is no longer
+            // the current question.
+            if (myRequestID !== requestID) {
+                return;
+            }
+
             try {
                 await sendToTI83("WAIT");
                 console.log("Sent WAIT");
             } catch (error) {
                 console.error("WAIT send failed:", error);
             }
+
         }, 5000);
 
         const response =
@@ -237,14 +249,26 @@ async function handleBLEMessage(event) {
         document.getElementById("answer")
             .textContent = answer;
 
-        // Gemini finished.
+        // Stop WAIT messages BEFORE sending the answer.
         clearInterval(waitTimer);
         waitTimer = null;
+
+        // Make absolutely sure this is still
+        // the current question.
+        if (myRequestID !== requestID) {
+            return;
+        }
 
         // Send the real answer.
         await sendToTI83(answer);
 
+        console.log(
+            "Sent final answer to TI-83:",
+            answer
+        );
+
     } catch (error) {
+
         console.error(error);
 
         clearInterval(waitTimer);
@@ -255,7 +279,6 @@ async function handleBLEMessage(event) {
                 "ERROR: " + error.message;
     }
 }
-
 
 /* =====================================================
    SEND TEXT TO TI-83
