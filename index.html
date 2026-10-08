@@ -182,7 +182,7 @@ async function handleBLEMessage(event) {
         document.getElementById("answer")
             .textContent = "Thinking...";
 
-        // Tell calculator we're working
+        // Tell the calculator we're working
         await sendToTI83("WAIT");
 
         // Ask Gemini
@@ -206,6 +206,8 @@ async function handleBLEMessage(event) {
 
         const answer =
             data.answer || "No answer received.";
+
+        console.log("AI answer:", answer);
 
         document.getElementById("answer")
             .textContent = answer;
