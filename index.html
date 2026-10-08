@@ -2,10 +2,79 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>TI-83 Chat</title>
 </head>
+
 <body>
     <h1>TI-83 Chat</h1>
-    <p>BLE bridge test</p>
+
+    <button id="connect">Connect to TI-83</button>
+
+    <p id="status">Disconnected</p>
+
+    <h3>Received:</h3>
+    <pre id="received"></pre>
+
+<script>
+const SERVICE_UUID =
+    "12345678-1234-1234-1234-1234567890ab";
+
+const CHARACTERISTIC_UUID =
+    "87654321-4321-4321-4321-ba0987654321";
+
+let device;
+let characteristic;
+
+document.getElementById("connect").onclick = async () => {
+    try {
+        document.getElementById("status").textContent =
+            "Scanning...";
+
+        device = await navigator.bluetooth.requestDevice({
+            filters: [
+                { services: [SERVICE_UUID] }
+            ]
+        });
+
+        document.getElementById("status").textContent =
+            "Connecting...";
+
+        const server = await device.gatt.connect();
+
+        const service =
+            await server.getPrimaryService(SERVICE_UUID);
+
+        characteristic =
+            await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+        await characteristic.startNotifications();
+
+        characteristic.addEventListener(
+            "characteristicvaluechanged",
+            event => {
+                const bytes = new Uint8Array(
+                    event.target.value.buffer
+                );
+
+                const text = new TextDecoder().decode(bytes);
+
+                document.getElementById("received").textContent =
+                    text;
+            }
+        );
+
+        document.getElementById("status").textContent =
+            "CONNECTED to " + device.name;
+
+    } catch (error) {
+        document.getElementById("status").textContent =
+            "ERROR: " + error;
+
+        console.error(error);
+    }
+};
+</script>
+
 </body>
 </html>
