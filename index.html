@@ -134,9 +134,18 @@ async function connectToMarilyn() {
         );
 
 
-        document.getElementById("status").textContent =
-            "CONNECTED to " + device.name;
+      document.getElementById("status").textContent =
+    "CONNECTED to " + device.name;
 
+device.removeEventListener(
+    "gattserverdisconnected",
+    handleDisconnect
+);
+
+device.addEventListener(
+    "gattserverdisconnected",
+    handleDisconnect
+);
 
         console.log("Connected to Marilyn");
 
@@ -160,7 +169,108 @@ async function connectToMarilyn() {
 
 }
 
+    /* =====================================================
+   AUTOMATIC RECONNECT
+===================================================== */
 
+let reconnectTimer = null;
+let reconnecting = false;
+
+
+async function tryAutoConnect() {
+
+    if (reconnecting) {
+        return;
+    }
+
+    if (device && device.gatt && device.gatt.connected) {
+        return;
+    }
+
+    if (!navigator.bluetooth.getDevices) {
+        console.log("Automatic Bluetooth reconnect is not supported.");
+        return;
+    }
+
+    reconnecting = true;
+
+    try {
+
+        const devices =
+            await navigator.bluetooth.getDevices();
+
+        const found =
+            devices.find(d => d.name === "Marilyn");
+
+        if (!found) {
+            console.log("Marilyn has not been authorized yet.");
+            return;
+        }
+
+        device = found;
+
+        document.getElementById("status").textContent =
+            "Found Marilyn. Connecting...";
+
+        await connectToMarilyn();
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Marilyn not available yet."
+        );
+
+        document.getElementById("status").textContent =
+            "Waiting for Marilyn...";
+
+    }
+
+    finally {
+
+        reconnecting = false;
+
+    }
+
+}
+
+
+/* =====================================================
+   KEEP TRYING
+===================================================== */
+
+function startAutoReconnect() {
+
+    if (reconnectTimer !== null) {
+        return;
+    }
+
+    tryAutoConnect();
+
+    reconnectTimer =
+        setInterval(
+            tryAutoConnect,
+            3000
+        );
+
+}
+
+/* =====================================================
+   HANDLE DISCONNECT
+===================================================== */
+
+function handleDisconnect() {
+
+    characteristic = null;
+
+    document.getElementById("status").textContent =
+        "Marilyn disconnected. Reconnecting...";
+
+    startAutoReconnect();
+
+}
+    
 /* =====================================================
    MANUAL CONNECT BUTTON
 ===================================================== */
@@ -298,7 +408,12 @@ async function sendToTI83(text) {
     );
 
 }
+    
+/* =====================================================
+   START AUTOMATIC CONNECTION
+===================================================== */
 
+startAutoReconnect();
 
 /* =====================================================
    MANUAL SEND BUTTON
