@@ -90,6 +90,10 @@ const AI_URL =
 let device;
 let characteristic;
 
+    <div id="bluetoothDebug"
+     style="font-size:12px; margin:10px 0; white-space:pre-wrap;">
+Bluetooth debug loading...
+</div>
 
 /* =====================================================
    CONNECT TO XIAO
@@ -431,6 +435,70 @@ async function sendToTI83(text) {
 ===================================================== */
 
 startAutoReconnect();
+
+    async function bluetoothDebug() {
+
+    const box =
+        document.getElementById("bluetoothDebug");
+
+    try {
+
+        if (!navigator.bluetooth) {
+
+            box.textContent =
+                "Bluetooth API: NOT AVAILABLE";
+
+            return;
+        }
+
+        let text =
+            "Bluetooth API: AVAILABLE\n";
+
+        const devices =
+            await navigator.bluetooth.getDevices();
+
+        text +=
+            "Authorized devices: " +
+            devices.length +
+            "\n";
+
+        if (devices.length === 0) {
+
+            text +=
+                "No previously authorized devices found.";
+
+        } else {
+
+            devices.forEach((d, i) => {
+
+                text +=
+                    "Device " +
+                    (i + 1) +
+                    ": " +
+                    (d.name || "(no name)") +
+                    "\n";
+
+                text +=
+                    "Connected: " +
+                    (d.gatt?.connected ? "YES" : "NO") +
+                    "\n";
+
+            });
+
+        }
+
+        box.textContent = text;
+
+    } catch (error) {
+
+        box.textContent =
+            "Bluetooth debug ERROR:\n" +
+            error.message;
+
+    }
+}
+
+bluetoothDebug();
 
 /* =====================================================
    MANUAL SEND BUTTON
