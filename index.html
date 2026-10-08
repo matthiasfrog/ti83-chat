@@ -97,22 +97,9 @@ let characteristic;
    CONNECT TO XIAO
 ===================================================== */
 
-document.getElementById("connect").onclick = async () => {
+async function connectToMarilyn() {
 
     try {
-
-        document.getElementById("status").textContent =
-            "Scanning...";
-
-
-        device = await navigator.bluetooth.requestDevice({
-            filters: [
-                {
-                    services: [SERVICE_UUID]
-                }
-            ]
-        });
-
 
         document.getElementById("status").textContent =
             "Connecting...";
@@ -134,9 +121,13 @@ document.getElementById("connect").onclick = async () => {
             );
 
 
-        /* Listen for TI-83 messages */
-
         await characteristic.startNotifications();
+
+
+        characteristic.removeEventListener(
+            "characteristicvaluechanged",
+            handleBLEMessage
+        );
 
 
         characteristic.addEventListener(
@@ -147,6 +138,53 @@ document.getElementById("connect").onclick = async () => {
 
         document.getElementById("status").textContent =
             "CONNECTED to " + device.name;
+
+
+        console.log("Connected to Marilyn");
+
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        characteristic = null;
+
+
+        document.getElementById("status").textContent =
+            "Disconnected";
+
+
+        throw error;
+
+    }
+
+}
+
+
+/* =====================================================
+   MANUAL CONNECT BUTTON
+===================================================== */
+
+document.getElementById("connect").onclick = async () => {
+
+    try {
+
+        document.getElementById("status").textContent =
+            "Scanning...";
+
+
+        device = await navigator.bluetooth.requestDevice({
+            filters: [
+                {
+                    services: [SERVICE_UUID]
+                }
+            ]
+        });
+
+
+        await connectToMarilyn();
 
     }
 
@@ -233,7 +271,7 @@ async function sendToTI83(text) {
     if (!characteristic) {
 
         throw new Error(
-            "TI-83 is not connected."
+            "Marilyn is not connected."
         );
 
     }
@@ -257,7 +295,7 @@ async function sendToTI83(text) {
 
 
     console.log(
-        "Sent to TI-83:",
+        "Sent to Marilyn:",
         text
     );
 
