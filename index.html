@@ -3,22 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TI-83 Chat</title>
+    <title>TI-83 AI</title>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 600px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+
+        button {
+            padding: 10px 16px;
+            margin: 5px 0;
+            font-size: 16px;
+        }
+
+        input {
+            padding: 10px;
+            font-size: 16px;
+            width: 70%;
+        }
+
+        #status {
+            font-weight: bold;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #eee;
+            padding: 10px;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>TI-83 Chat</h1>
 
-    <button id="connect">Connect to TI-83</button>
+    <h1>TI-83 AI</h1>
 
-    <p id="status">Disconnected</p>
+    <button id="connect">
+        Connect to TI-83
+    </button>
 
-    <h3>Received from TI-83:</h3>
+    <p id="status">
+        Disconnected
+    </p>
+
+
+    <h3>Question from TI-83:</h3>
+
     <pre id="received"></pre>
+
+
+    <h3>AI Answer:</h3>
+
+    <pre id="answer"></pre>
+
 
     <hr>
 
-    <h3>Send to TI-83:</h3>
+
+    <h3>Manual Send:</h3>
 
     <input
         id="message"
@@ -26,7 +72,10 @@
         placeholder="Type message..."
     >
 
-    <button id="send">Send</button>
+    <button id="send">
+        Send
+    </button>
+
 
 <script>
 
@@ -36,13 +85,17 @@ const SERVICE_UUID =
 const CHARACTERISTIC_UUID =
     "87654321-4321-4321-4321-ba0987654321";
 
+const AI_URL =
+    "https://ti83.matthias-frog.workers.dev/";
+
+
 let device;
 let characteristic;
 
 
-/* -----------------------------
-   CONNECT
------------------------------ */
+/* =====================================================
+   CONNECT TO XIAO
+===================================================== */
 
 document.getElementById("connect").onclick = async () => {
 
@@ -51,20 +104,29 @@ document.getElementById("connect").onclick = async () => {
         document.getElementById("status").textContent =
             "Scanning...";
 
+
         device = await navigator.bluetooth.requestDevice({
             filters: [
-                { services: [SERVICE_UUID] }
+                {
+                    services: [SERVICE_UUID]
+                }
             ]
         });
+
 
         document.getElementById("status").textContent =
             "Connecting...";
 
+
         const server =
             await device.gatt.connect();
 
+
         const service =
-            await server.getPrimaryService(SERVICE_UUID);
+            await server.getPrimaryService(
+                SERVICE_UUID
+            );
+
 
         characteristic =
             await service.getCharacteristic(
@@ -76,21 +138,10 @@ document.getElementById("connect").onclick = async () => {
 
         await characteristic.startNotifications();
 
+
         characteristic.addEventListener(
             "characteristicvaluechanged",
-            event => {
-
-                const bytes = new Uint8Array(
-                    event.target.value.buffer
-                );
-
-                const text =
-                    new TextDecoder().decode(bytes);
-
-                document.getElementById(
-                    "received"
-                ).textContent = text;
-            }
+            handleBLEMessage
         );
 
 
@@ -101,61 +152,179 @@ document.getElementById("connect").onclick = async () => {
 
     catch (error) {
 
+        console.error(error);
+
         document.getElementById("status").textContent =
             "ERROR: " + error;
 
-        console.error(error);
     }
+
 };
 
 
-/* -----------------------------
-   SEND TO TI-83
------------------------------ */
+/* =====================================================
+   RECEIVE MESSAGE FROM TI-83
+===================================================== */
+
+async function handleBLEMessage(event) {
+
+    try {
+
+        const bytes =
+            new Uint8Array(
+                event.target.value.buffer
+            );
+
+
+        const text =
+            new TextDecoder().decode(bytes);
+
+
+        console.log(
+            "Received from TI-83:",
+            text
+        );
+
+
+        document.getElementById("received")
+            .textContent = text;
+
+
+        /*
+         * Ask Gemini
+         */
+
+        document.getElementById("answer")
+            .textContent = "Thinking...";
+
+
+        const response =
+            await fetch(AI_URL, {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    question: text
+                })
+
+            });
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.error || "AI request failed"
+            );
+
+        }
+
+
+        const answer =
+            data.answer || "No answer received.";
+
+
+        console.log(
+            "AI answer:",
+            answer
+        );
+
+
+        document.getElementById("answer")
+            .textContent = answer;
+
+
+        /*
+         * Send answer back to TI-83
+         */
+
+        await sendToTI83(answer);
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        document.getElementById("answer")
+            .textContent =
+                "ERROR: " + error.message;
+
+    }
+
+}
+
+
+/* =====================================================
+   SEND TEXT TO TI-83
+===================================================== */
+
+async function sendToTI83(text) {
+
+    if (!characteristic) {
+
+        throw new Error(
+            "TI-83 is not connected."
+        );
+
+    }
+
+
+    /*
+     * Convert text to UTF-8
+     */
+
+    const bytes =
+        new TextEncoder().encode(text);
+
+
+    /*
+     * BLE write
+     */
+
+    await characteristic.writeValueWithResponse(
+        bytes
+    );
+
+
+    console.log(
+        "Sent to TI-83:",
+        text
+    );
+
+}
+
+
+/* =====================================================
+   MANUAL SEND BUTTON
+===================================================== */
 
 document.getElementById("send").onclick = async () => {
 
     try {
 
-        if (!characteristic) {
-
-            alert("Connect to the TI-83 first.");
-
-            return;
-        }
-
-
         const input =
             document.getElementById("message");
 
+
         const text =
             input.value;
+
 
         if (text.length === 0) {
             return;
         }
 
 
-        /* Convert text to UTF-8 bytes */
+        await sendToTI83(text);
 
-        const bytes =
-            new TextEncoder().encode(text);
-
-
-        /* Send bytes over BLE */
-
-        await characteristic.writeValueWithResponse(
-            bytes
-        );
-
-
-        console.log(
-            "Sent to TI-83:",
-            text
-        );
-
-
-        /* Clear input */
 
         input.value = "";
 
@@ -166,9 +335,12 @@ document.getElementById("send").onclick = async () => {
         console.error(error);
 
         alert(
-            "Send failed: " + error
+            "Send failed: " +
+            error.message
         );
+
     }
+
 };
 
 </script>
