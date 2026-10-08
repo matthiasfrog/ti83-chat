@@ -13,10 +13,23 @@
 
     <p id="status">Disconnected</p>
 
-    <h3>Received:</h3>
+    <h3>Received from TI-83:</h3>
     <pre id="received"></pre>
 
+    <hr>
+
+    <h3>Send to TI-83:</h3>
+
+    <input
+        id="message"
+        type="text"
+        placeholder="Type message..."
+    >
+
+    <button id="send">Send</button>
+
 <script>
+
 const SERVICE_UUID =
     "12345678-1234-1234-1234-1234567890ab";
 
@@ -26,8 +39,15 @@ const CHARACTERISTIC_UUID =
 let device;
 let characteristic;
 
+
+/* -----------------------------
+   CONNECT
+----------------------------- */
+
 document.getElementById("connect").onclick = async () => {
+
     try {
+
         document.getElementById("status").textContent =
             "Scanning...";
 
@@ -40,40 +60,117 @@ document.getElementById("connect").onclick = async () => {
         document.getElementById("status").textContent =
             "Connecting...";
 
-        const server = await device.gatt.connect();
+        const server =
+            await device.gatt.connect();
 
         const service =
             await server.getPrimaryService(SERVICE_UUID);
 
         characteristic =
-            await service.getCharacteristic(CHARACTERISTIC_UUID);
+            await service.getCharacteristic(
+                CHARACTERISTIC_UUID
+            );
+
+
+        /* Listen for TI-83 messages */
 
         await characteristic.startNotifications();
 
         characteristic.addEventListener(
             "characteristicvaluechanged",
             event => {
+
                 const bytes = new Uint8Array(
                     event.target.value.buffer
                 );
 
-                const text = new TextDecoder().decode(bytes);
+                const text =
+                    new TextDecoder().decode(bytes);
 
-                document.getElementById("received").textContent =
-                    text;
+                document.getElementById(
+                    "received"
+                ).textContent = text;
             }
         );
+
 
         document.getElementById("status").textContent =
             "CONNECTED to " + device.name;
 
-    } catch (error) {
+    }
+
+    catch (error) {
+
         document.getElementById("status").textContent =
             "ERROR: " + error;
 
         console.error(error);
     }
 };
+
+
+/* -----------------------------
+   SEND TO TI-83
+----------------------------- */
+
+document.getElementById("send").onclick = async () => {
+
+    try {
+
+        if (!characteristic) {
+
+            alert("Connect to the TI-83 first.");
+
+            return;
+        }
+
+
+        const input =
+            document.getElementById("message");
+
+        const text =
+            input.value;
+
+        if (text.length === 0) {
+            return;
+        }
+
+
+        /* Convert text to UTF-8 bytes */
+
+        const bytes =
+            new TextEncoder().encode(text);
+
+
+        /* Send bytes over BLE */
+
+        await characteristic.writeValueWithResponse(
+            bytes
+        );
+
+
+        console.log(
+            "Sent to TI-83:",
+            text
+        );
+
+
+        /* Clear input */
+
+        input.value = "";
+
+    }
+
+    catch (error) {
+
+        console.error(error);
+
+        alert(
+            "Send failed: " + error
+        );
+    }
+};
+
 </script>
 
 </body>
